@@ -119,10 +119,10 @@ index 79d0676e..106ddef6 100644
  LOGIC=<string>            Pass (set-logic <string>) to the prover
 diff --git a/Source/Provers/SMTLib/VampireSMTLibSolver.cs b/Source/Provers/SMTLib/VampireSMTLibSolver.cs
 new file mode 100644
-index 00000000..3fbb0f2f
+index 00000000..081d39ec
 --- /dev/null
 +++ b/Source/Provers/SMTLib/VampireSMTLibSolver.cs
-@@ -0,0 +1,275 @@
+@@ -0,0 +1,287 @@
 +using System;
 +using System.Collections.Generic;
 +using System.Diagnostics;
@@ -149,7 +149,7 @@ index 00000000..3fbb0f2f
 +  private string outcome = "unknown";
 +  private string reasonUnknown = "";
 +  private IReadOnlyList<SExpr> result => [
-+    new SExpr(outcome), 
++    new SExpr(outcome),
 +    new SExpr(":reason-unknown", [new SExpr(reasonUnknown)])
 +  ];
 +  private SMTLibSolverOptions options;
@@ -162,7 +162,7 @@ index 00000000..3fbb0f2f
 +    bool verbose = options.Verbosity == 1;
 +
 +    string execPath = options.ExecutablePath();
-+    string solverArgs = string.Join(" ", [..options.SolverArguments, ("-t " + (Math.Max(options.TimeLimit - 1000, 0) / 100) + "d")]);
++    string solverArgs = string.Join(" ", [.. options.SolverArguments, ("-t " + (Math.Max(options.TimeLimit - 1000, 0) / 100) + "d")]);
 +    // timelimit gets parsed later in the pipeline...
 +
 +    if (verbose)
@@ -222,7 +222,7 @@ index 00000000..3fbb0f2f
 +  public override Task PingPong()
 +  {
 +    if (!terminated)
-+    { 
++    {
 +      return Task.CompletedTask;
 +    }
 +    else
@@ -282,29 +282,48 @@ index 00000000..3fbb0f2f
 +      this.rcount = int.Parse(rcLine.Groups[1].Value);
 +    }
 +
-+    // try parse the termination reason
++    // try parse the SZS status
++    var szs = Regex.Match(line, @"% SZS status\s+(\S+)");
++    if (szs.Success)
++    {
++      var actualStatus = szs.Groups[1].Value;
++      switch (actualStatus)
++      {
++        // Vampire only reports sat/unsat in SMT-LIB mode
++        case "Satisfiable":
++          outcome = "sat";
++          reasonUnknown = "";
++          break;
++        case "Unsatisfiable":
++          outcome = "unsat";
++          reasonUnknown = "";
++          break;
++        case "GaveUp":
++          outcome = "unknown";
++          reasonUnknown = "resource limits reached";
++          break;
++        case "Timeout":
++          outcome = "unknown";
++          reasonUnknown = "timeout";
++          break;
++        default:
++          outcome = "unknown";
++          reasonUnknown = "";
++          break;
++      }
++
++    }
++
++    // Sometimes, Vampire does not print the SZS status
 +    // https://github.com/vprover/vampire/blob/ec9595e79e4890d82cf090223c6cda5b73805bbc/Shell/Statistics.hpp#L39
 +    // Refutation, Satisfiable, Refutation not found (?), Time limit, Instruction limit, Memory limit, Activation limit,
 +    // Unknown, Inappropriate 
 +    if (line.Contains("Termination reason"))
 +    {
-+      if (line.Contains("Refutation"))
++      if (line.Contains("Refutation not found"))
 +      {
-+        if (line.Contains("Refutation not found"))
-+        {
-+          outcome = "unknown";
-+          reasonUnknown = "incomplete";
-+        }
-+        else
-+        {
-+          outcome = "unsat";
-+          reasonUnknown = "";
-+        }
-+      }
-+      else if (line.Contains("Satisfiable"))
-+      {
-+        outcome = "sat";
-+        reasonUnknown = "";
++        outcome = "unknown";
++        reasonUnknown = "incomplete";
 +      }
 +      else if (line.Contains("Time limit"))
 +      {
@@ -314,7 +333,7 @@ index 00000000..3fbb0f2f
 +      else if (line.Contains("Memory limit"))
 +      {
 +        outcome = "unknown";
-+        reasonUnknown = "resource limits reached";
++        reasonUnknown = "memout";
 +      }
 +      else if (line.Contains("Activation limit"))
 +      {
@@ -327,17 +346,10 @@ index 00000000..3fbb0f2f
 +        reasonUnknown = "resource limits reached";
 +      }
 +    }
-+    // in CASC and Portfolio mode, the timeout does not get
-+    // reported via 'Termination Reason' but via SZS
-+    else if (line.Contains("SZS status Timeout"))
-+    {
-+        outcome = "unknown";
-+        reasonUnknown = "timeout";
-+    }
 +  }
 +
 +  public override async Task<IReadOnlyList<SExpr>> SendRequestsAndCloseInput(
-+    IReadOnlyList<string> requests, 
++    IReadOnlyList<string> requests,
 +    CancellationToken cancellationToken = default
 +    )
 +  {
