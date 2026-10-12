@@ -3,7 +3,7 @@
 This repository contains patches for Boogie, an intermediate verification language,
 to also support Vampire as one of its verification backends.
 
-## Usage with Dafny
+## Patching instructions
 
 Clone the Boogie repository
 
@@ -32,17 +32,36 @@ $ dotnet build Source/ExecutionEngine
 $ dotnet build Source/Provers/SMTLib
 ```
 
-And copy the compiled binaries into the `dafny/Binaries` folder
+## Running with Dafny
 
-```
+### Installing
+
+To use the patched version of Boogie with Dafny, you must copy the previously built `dll`s into the folder where Dafny expects its dependencies to be:
+
+**If you have built Dafny from source**, copy the compiled binaries into the `dafny/Binaries` folder
+
+```sh
 $ cp Source/VCExpr/bin/<target>/<dotnetVersion>/Boogie.VCExpr.dll /path/to/dafny/Binaries
 $ cp Source/ExecutionEngine/bin/<target>/<dotnetVersion>/Boogie.ExecutionEngine.dll /path/to/dafny/Binaries
 $ cp Source/Provers/SMTLib/bin/<target>/<dotnetVersion>/Boogie.Provers.SMTLib.dll /path/to/dafny/Binaries
 ```
 
-Lastly, get the `DafnyTPTPPrelude.bpl` from [the TPTP plugin repository](https://github.com/rysavym/boogie-tptp).
+**If you have downloaded a pre-built version of Dafny**, copy the compiled binaries in the directory where the `dafny`
+executable is located, which is usually where you unzipped the Dafny build:
 
-Then, you can run the plugin using
+```sh
+$ cp Source/VCExpr/bin/<target>/<dotnetVersion>/Boogie.VCExpr.dll /path/to/unzipped-dafny
+$ cp Source/ExecutionEngine/bin/<target>/<dotnetVersion>/Boogie.ExecutionEngine.dll /path/to/unzipped-dafny
+$ cp Source/Provers/SMTLib/bin/<target>/<dotnetVersion>/Boogie.Provers.SMTLib.dll /path/to/unzipped-dafny
+```
+
+In both cases, you should be overwriting the existing `Boogie.VCExpr.dll`, `Boogie.ExecutionEngine.dll` and `Boogie.Provers.SMTLib.dll`.
+
+### Verifying with Vampire in SMT-LIB syntax
+
+If you want to verify with Vampire in  SMT-LIB syntax, get the `DafnyTPTPPrelude.bpl` from [the TPTP plugin repository](https://github.com/rysavym/boogie-tptp).
+
+Then, you can run Dafny with
 
 ```
 $ dafny verify \
